@@ -48,6 +48,7 @@ type Config struct {
 	NetWork        string     `yaml:"network"`
 	Chains         []Chain    `yaml:"chains"`
 	EnableApiCache bool       `yaml:"enable_api_cache"`
+	AccessToken    string     `yaml:"access_token"`
 }
 
 func NewConfig(path string) (*Config, error) {

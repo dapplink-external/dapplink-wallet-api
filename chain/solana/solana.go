@@ -27,10 +27,6 @@ const (
 	ChainID string = "DappLinkSolana"
 )
 
-const (
-	MaxBlockRange = 1000
-)
-
 type ChainAdaptor struct {
 	solCli    SolClient
 	sdkClient *rpc.Client
@@ -70,14 +66,18 @@ func (c *ChainAdaptor) ConvertAddresses(ctx context.Context, req *walletapi.Conv
 		publicKeyBytes, err := hex.DecodeString(strings.TrimPrefix(publicKeyItem.PublicKey, "0x"))
 		if err != nil {
 			addressItem = &walletapi.Addresses{
-				Address: "",
+				Address:   "",
+				PublicKey: publicKeyItem.PublicKey,
+				Type:      publicKeyItem.Type,
 			}
 			log.Error("decode public key fail", "err", err)
 		} else {
 			pubKey := solana.PublicKeyFromBytes(publicKeyBytes)
 			log.Info("convert addresses", "address", pubKey.String())
 			addressItem = &walletapi.Addresses{
-				Address: pubKey.String(),
+				Address:   pubKey.String(),
+				PublicKey: publicKeyItem.PublicKey,
+				Type:      publicKeyItem.Type,
 			}
 		}
 		retAddressList = append(retAddressList, addressItem)

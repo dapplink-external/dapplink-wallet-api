@@ -589,8 +589,9 @@ func (x *WithdrawTransactionResponse) GetMsg() string {
 
 type SetTokenAddressRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	TokenList     []*Token               `protobuf:"bytes,2,rep,name=token_list,json=tokenList,proto3" json:"token_list,omitempty"`
+	ConsumerToken string                 `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
+	RequestId     string                 `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	TokenList     []*Token               `protobuf:"bytes,3,rep,name=token_list,json=tokenList,proto3" json:"token_list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -623,6 +624,13 @@ func (x *SetTokenAddressRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use SetTokenAddressRequest.ProtoReflect.Descriptor instead.
 func (*SetTokenAddressRequest) Descriptor() ([]byte, []int) {
 	return file_dapplink_wallerpcservice_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *SetTokenAddressRequest) GetConsumerToken() string {
+	if x != nil {
+		return x.ConsumerToken
+	}
+	return ""
 }
 
 func (x *SetTokenAddressRequest) GetRequestId() string {
@@ -742,12 +750,13 @@ const file_dapplink_wallerpcservice_proto_rawDesc = "" +
 	"\fwithdraw_txn\x18\x02 \x03(\v2\x15.dapplink.WithdrawTxnR\vwithdrawTxn\"Y\n" +
 	"\x1bwithdrawTransactionResponse\x12(\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x14.dapplink.ReturnCodeR\x04code\x12\x10\n" +
-	"\x03msg\x18\x02 \x01(\tR\x03msg\"g\n" +
-	"\x16SetTokenAddressRequest\x12\x1d\n" +
+	"\x03msg\x18\x02 \x01(\tR\x03msg\"\x8e\x01\n" +
+	"\x16SetTokenAddressRequest\x12%\n" +
+	"\x0econsumer_token\x18\x01 \x01(\tR\rconsumerToken\x12\x1d\n" +
 	"\n" +
-	"request_id\x18\x01 \x01(\tR\trequestId\x12.\n" +
+	"request_id\x18\x02 \x01(\tR\trequestId\x12.\n" +
 	"\n" +
-	"token_list\x18\x02 \x03(\v2\x0f.dapplink.TokenR\ttokenList\"U\n" +
+	"token_list\x18\x03 \x03(\v2\x0f.dapplink.TokenR\ttokenList\"U\n" +
 	"\x17SetTokenAddressResponse\x12(\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x14.dapplink.ReturnCodeR\x04code\x12\x10\n" +
 	"\x03msg\x18\x02 \x01(\tR\x03msg2\x9f\x03\n" +

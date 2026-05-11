@@ -52,7 +52,9 @@ func (c *ChainAdaptor) ConvertAddresses(ctx context.Context, req *walletapi.Conv
 		publicKeyBytes, err := hex.DecodeString(strings.TrimPrefix(publicKeyItem.PublicKey, "0x"))
 		if err != nil {
 			addressItem = &walletapi.Addresses{
-				Address: "",
+				Address:   "",
+				PublicKey: publicKeyItem.PublicKey,
+				Type:      publicKeyItem.Type,
 			}
 			log.Error("decode public key fail", "err", err)
 		} else {
@@ -66,7 +68,9 @@ func (c *ChainAdaptor) ConvertAddresses(ctx context.Context, req *walletapi.Conv
 				addr := address.PubkeyToAddress(*pubKey.ToECDSA())
 				log.Info("convert addresses", "address", addr.String())
 				addressItem = &walletapi.Addresses{
-					Address: addr.String(),
+					Address:   addr.String(),
+					PublicKey: publicKeyItem.PublicKey,
+					Type:      publicKeyItem.Type,
 				}
 			}
 		}

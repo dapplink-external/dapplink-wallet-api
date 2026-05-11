@@ -349,6 +349,7 @@ type Addresses struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
 	PublicKey     string                 `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -393,6 +394,13 @@ func (x *Addresses) GetAddress() string {
 func (x *Addresses) GetPublicKey() string {
 	if x != nil {
 		return x.PublicKey
+	}
+	return ""
+}
+
+func (x *Addresses) GetType() string {
+	if x != nil {
+		return x.Type
 	}
 	return ""
 }
@@ -536,7 +544,8 @@ func (x *ConvertAddressesResponse) GetAddress() []*Addresses {
 type AddressesValid struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	Valid         bool                   `protobuf:"varint,2,opt,name=valid,proto3" json:"valid,omitempty"`
+	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	Valid         bool                   `protobuf:"varint,3,opt,name=valid,proto3" json:"valid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -574,6 +583,13 @@ func (*AddressesValid) Descriptor() ([]byte, []int) {
 func (x *AddressesValid) GetAddress() string {
 	if x != nil {
 		return x.Address
+	}
+	return ""
+}
+
+func (x *AddressesValid) GetType() string {
+	if x != nil {
+		return x.Type
 	}
 	return ""
 }
@@ -986,6 +1002,8 @@ type TransactionList struct {
 	ContractAddress string                 `protobuf:"bytes,5,opt,name=contract_address,json=contractAddress,proto3" json:"contract_address,omitempty"`
 	From            []*FromAddress         `protobuf:"bytes,6,rep,name=from,proto3" json:"from,omitempty"`
 	To              []*ToAddress           `protobuf:"bytes,7,rep,name=to,proto3" json:"to,omitempty"`
+	BlockHash       string                 `protobuf:"bytes,8,opt,name=block_hash,json=blockHash,proto3" json:"block_hash,omitempty"`
+	BlockHeight     uint64                 `protobuf:"varint,9,opt,name=block_height,json=blockHeight,proto3" json:"block_height,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1067,6 +1085,20 @@ func (x *TransactionList) GetTo() []*ToAddress {
 		return x.To
 	}
 	return nil
+}
+
+func (x *TransactionList) GetBlockHash() string {
+	if x != nil {
+		return x.BlockHash
+	}
+	return ""
+}
+
+func (x *TransactionList) GetBlockHeight() uint64 {
+	if x != nil {
+		return x.BlockHeight
+	}
+	return 0
 }
 
 type BlockRequest struct {
@@ -2670,11 +2702,12 @@ const file_dapplink_walletapi_proto_rawDesc = "" +
 	"\x14SupportChainResponse\x12(\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x14.dapplink.ReturnCodeR\x04code\x12\x10\n" +
 	"\x03msg\x18\x02 \x01(\tR\x03msg\x12.\n" +
-	"\x06chains\x18\x03 \x03(\v2\x16.dapplink.SupportChainR\x06chains\"D\n" +
+	"\x06chains\x18\x03 \x03(\v2\x16.dapplink.SupportChainR\x06chains\"X\n" +
 	"\tAddresses\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1d\n" +
 	"\n" +
-	"public_key\x18\x02 \x01(\tR\tpublicKey\"\xd0\x01\n" +
+	"public_key\x18\x02 \x01(\tR\tpublicKey\x12\x12\n" +
+	"\x04type\x18\x03 \x01(\tR\x04type\"\xd0\x01\n" +
 	"\x17ConvertAddressesRequest\x12%\n" +
 	"\x0econsumer_token\x18\x01 \x01(\tR\rconsumerToken\x12\x19\n" +
 	"\bchain_id\x18\x02 \x01(\tR\achainId\x12\x18\n" +
@@ -2685,10 +2718,11 @@ const file_dapplink_walletapi_proto_rawDesc = "" +
 	"\x18ConvertAddressesResponse\x12(\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x14.dapplink.ReturnCodeR\x04code\x12\x10\n" +
 	"\x03msg\x18\x02 \x01(\tR\x03msg\x12-\n" +
-	"\aaddress\x18\x03 \x03(\v2\x13.dapplink.AddressesR\aaddress\"@\n" +
+	"\aaddress\x18\x03 \x03(\v2\x13.dapplink.AddressesR\aaddress\"T\n" +
 	"\x0eAddressesValid\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x14\n" +
-	"\x05valid\x18\x02 \x01(\bR\x05valid\"\xa6\x01\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12\x14\n" +
+	"\x05valid\x18\x03 \x01(\bR\x05valid\"\xa6\x01\n" +
 	"\x15ValidAddressesRequest\x12%\n" +
 	"\x0econsumer_token\x18\x01 \x01(\tR\rconsumerToken\x12\x19\n" +
 	"\bchain_id\x18\x02 \x01(\tR\achainId\x12\x18\n" +
@@ -2717,7 +2751,7 @@ const file_dapplink_walletapi_proto_rawDesc = "" +
 	"\tToAddress\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x16\n" +
 	"\x06amount\x18\x02 \x01(\tR\x06amount\x12\x1b\n" +
-	"\tmeta_data\x18\x03 \x01(\tR\bmetaData\"\xe7\x01\n" +
+	"\tmeta_data\x18\x03 \x01(\tR\bmetaData\"\xa9\x02\n" +
 	"\x0fTransactionList\x12\x17\n" +
 	"\atx_hash\x18\x01 \x01(\tR\x06txHash\x12\x10\n" +
 	"\x03fee\x18\x02 \x01(\tR\x03fee\x12\x16\n" +
@@ -2725,7 +2759,10 @@ const file_dapplink_walletapi_proto_rawDesc = "" +
 	"\x06txType\x18\x04 \x01(\rR\x06txType\x12)\n" +
 	"\x10contract_address\x18\x05 \x01(\tR\x0fcontractAddress\x12)\n" +
 	"\x04from\x18\x06 \x03(\v2\x15.dapplink.FromAddressR\x04from\x12#\n" +
-	"\x02to\x18\a \x03(\v2\x13.dapplink.ToAddressR\x02to\"\xaf\x01\n" +
+	"\x02to\x18\a \x03(\v2\x13.dapplink.ToAddressR\x02to\x12\x1d\n" +
+	"\n" +
+	"block_hash\x18\b \x01(\tR\tblockHash\x12!\n" +
+	"\fblock_height\x18\t \x01(\x04R\vblockHeight\"\xaf\x01\n" +
 	"\fBlockRequest\x12%\n" +
 	"\x0econsumer_token\x18\x01 \x01(\tR\rconsumerToken\x12\x19\n" +
 	"\bchain_id\x18\x02 \x01(\tR\achainId\x12\x18\n" +

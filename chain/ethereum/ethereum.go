@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	common2 "github.com/dapplink-labs/dapplink-wallet-api/protobuf/common"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -25,6 +24,7 @@ import (
 	"github.com/dapplink-labs/dapplink-wallet-api/chain/evmbase"
 	"github.com/dapplink-labs/dapplink-wallet-api/common/util"
 	"github.com/dapplink-labs/dapplink-wallet-api/config"
+	common2 "github.com/dapplink-labs/dapplink-wallet-api/protobuf/common"
 	"github.com/dapplink-labs/dapplink-wallet-api/protobuf/walletapi"
 )
 
@@ -65,14 +65,18 @@ func (c ChainAdaptor) ConvertAddresses(ctx context.Context, req *walletapi.Conve
 		publicKeyBytes, err := hex.DecodeString(publicKeyItem.PublicKey)
 		if err != nil {
 			addressItem = &walletapi.Addresses{
-				Address: "",
+				Address:   "",
+				PublicKey: publicKeyItem.PublicKey,
+				Type:      publicKeyItem.Type,
 			}
 			log.Error("decode public key fail", "err", err)
 		} else {
 			addressCommon := common.BytesToAddress(crypto.Keccak256(publicKeyBytes[1:])[12:])
 			log.Info("convert addresses", "address", addressCommon.String())
 			addressItem = &walletapi.Addresses{
-				Address: addressCommon.String(),
+				Address:   addressCommon.String(),
+				PublicKey: publicKeyItem.PublicKey,
+				Type:      publicKeyItem.Type,
 			}
 		}
 		retAddressList = append(retAddressList, addressItem)
@@ -110,12 +114,15 @@ func (c ChainAdaptor) GetLastestBlock(ctx context.Context, req *walletapi.Lastes
 		log.Error("Get latest block fail", "err", err)
 		return nil, err
 	}
+
+	log.Info("Get latest block", "height", latestBock.Number, "hash", latestBock.Hash, "parentHash", latestBock.ParentHash)
+
 	return &walletapi.LastestBlockResponse{
 		Code:       common2.ReturnCode_SUCCESS,
 		Msg:        "get lastest block success",
 		Hash:       latestBock.Hash().String(),
 		Height:     latestBock.Number.Uint64(),
-		ParentHash: hex.EncodeToString(latestBock.ParentHash[:]),
+		ParentHash: latestBock.ParentHash.String(),
 		Timestamp:  latestBock.Time,
 	}, nil
 }
@@ -132,7 +139,7 @@ func (c ChainAdaptor) GetBlock(ctx context.Context, req *walletapi.BlockRequest)
 	if req.IsBlockHash {
 		rpcBlock, err = c.ethClient.BlockByHash(common.HexToHash(hashHeigh))
 		if err != nil {
-			log.Error("Get block information fail", "err", err)
+			log.Error("Get block information by hash fail", "err", err)
 			isError = true
 		}
 	} else {
@@ -140,12 +147,17 @@ func (c ChainAdaptor) GetBlock(ctx context.Context, req *walletapi.BlockRequest)
 		blockNumber.SetString(hashHeigh, 10)
 		rpcBlock, err = c.ethClient.BlockByNumber(blockNumber)
 		if err != nil {
-			log.Error("Get block information fail", "err", err)
+			log.Error("Get block information by heigh fail", "err", err)
 			isError = true
 		}
 	}
+	log.Info("Get block info by hash", "hash", hashHeigh, "rpcBlock", rpcBlock, "Transactions", len(rpcBlock.Transactions), "timestamp", rpcBlock.Timestamp)
+
 	var transactionList []*walletapi.TransactionList
 	for _, bockItem := range rpcBlock.Transactions {
+		if bockItem.To == "" {
+			continue
+		}
 		var fromList []*walletapi.FromAddress
 		var toList []*walletapi.ToAddress
 		fromList = append(fromList, &walletapi.FromAddress{
@@ -165,12 +177,22 @@ func (c ChainAdaptor) GetBlock(ctx context.Context, req *walletapi.BlockRequest)
 		}
 		transactionList = append(transactionList, txItem)
 	}
+	timestamp, err := rpcBlock.TimestampUint64()
+	if err != nil {
+		log.Error("Failed to decode timestamp", "err", err, "timestamp", rpcBlock.Timestamp)
+		return &walletapi.BlockResponse{
+			Code: common2.ReturnCode_ERROR,
+			Msg:  "failed to decode block timestamp",
+		}, nil
+	}
 	if !isError {
 		return &walletapi.BlockResponse{
 			Code:         common2.ReturnCode_SUCCESS,
 			Msg:          "get block success",
 			Height:       rpcBlock.Number,
 			Hash:         rpcBlock.Hash.String(),
+			ParentHash:   rpcBlock.ParentHash.String(),
+			Timestamp:    timestamp,
 			Transactions: transactionList,
 		}, nil
 	}

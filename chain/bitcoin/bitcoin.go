@@ -62,6 +62,10 @@ func (c ChainAdaptor) ConvertAddresses(ctx context.Context, req *walletapi.Conve
 		var walletAddress walletapi.Addresses
 		compressedPubKeyBytes, _ := hex.DecodeString(publicKeyItem.PublicKey)
 		pubKeyHash := btcutil.Hash160(compressedPubKeyBytes)
+
+		walletAddress.Type = publicKeyItem.Type
+		walletAddress.PublicKey = publicKeyItem.PublicKey
+		
 		switch req.GetAddressFormat() {
 		case "p2pkh":
 			p2pkhAddr, err := btcutil.NewAddressPubKeyHash(pubKeyHash, &chaincfg.MainNetParams)
@@ -115,6 +119,7 @@ func (c ChainAdaptor) ConvertAddresses(ctx context.Context, req *walletapi.Conve
 			log.Error("unsupported address format", "format", req.GetAddressFormat())
 			walletAddress.Address = ""
 		}
+
 		addressList = append(addressList, &walletAddress)
 	}
 	return &walletapi.ConvertAddressesResponse{

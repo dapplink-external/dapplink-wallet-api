@@ -21,8 +21,6 @@ import (
 	"github.com/dapplink-labs/dapplink-wallet-api/protobuf/walletapi"
 )
 
-const GrpcToken = "DappLinkTheWeb3"
-
 type CommonRequest interface {
 	GetConsumerToken() string
 }
@@ -85,7 +83,7 @@ func (d *ChainDispatcher) Interceptor(ctx context.Context, req interface{}, info
 	pos := strings.LastIndex(info.FullMethod, "/")
 	method := info.FullMethod[pos+1:]
 	consumerToken := req.(CommonRequest).GetConsumerToken()
-	if consumerToken != GrpcToken {
+	if consumerToken != d.conf.AccessToken {
 		return CommonReply{
 			Code: common.ReturnCode_ERROR,
 			Msg:  "Consumer token is not valid",
