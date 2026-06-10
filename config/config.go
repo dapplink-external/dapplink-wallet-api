@@ -14,19 +14,21 @@ type Server struct {
 }
 
 type Node struct {
-	RpcUrl       string `yaml:"rpc_url"`
-	RpcUser      string `yaml:"rpc_user"`
-	RpcPass      string `yaml:"rpc_pass"`
-	DataApiUrl   string `yaml:"data_api_url"`
-	DataApiKey   string `yaml:"data_api_key"`
-	DataApiToken string `yaml:"data_api_token"`
-	TpApiUrl     string `yaml:"tp_api_url"`
-	TimeOut      uint64 `yaml:"time_out"`
+	RpcUrl       string   `yaml:"rpc_url"`
+	RpcUser      string   `yaml:"rpc_user"`
+	RpcPass      string   `yaml:"rpc_pass"`
+	DataApiUrl   string   `yaml:"data_api_url"`
+	DataApiKey   string   `yaml:"data_api_key"`
+	DataApiToken string   `yaml:"data_api_token"`
+	ContractAddr []string `yaml:"contract_addr"`
+	TpApiUrl     string   `yaml:"tp_api_url"`
+	TimeOut      uint64   `yaml:"time_out"`
 }
 
 type WalletNode struct {
 	Btc     Node `yaml:"btc"`
 	Eth     Node `yaml:"eth"`
+	BNB     Node `yaml:"bnb"`
 	Arbi    Node `yaml:"arbi"`
 	Op      Node `yaml:"op"`
 	Sol     Node `yaml:"solana"`

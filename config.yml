@@ -18,6 +18,9 @@ chains:
   - chain_name: "Tron"
     chain_id: "DappLinkTron"
     netword: mainnet
+  - chain_name: "Bnb"
+    chain_id: "DappLinkBnbChain"
+    netword: mainnet
 
 wallet_node:
   eth:
@@ -27,6 +30,16 @@ wallet_node:
     data_api_url: 'https://api-holesky.etherscan.io/api?'
     data_api_key: 'HZEZGEPJJDA633N421AYW9NE8JFNZZC7JT'
     data_api_token: ''
+    time_out: 15
+
+  bnb:
+    rpc_url: 'https://shared.ap-southeast-1.getblock.io/cd2737b83bed4b529f2b29001024b1b8'
+    rpc_user: ''
+    rpc_pass: ''
+    data_api_url: 'https://api.etherscan.io/api?'
+    data_api_key: 'HZEZGEPJJDA633N421AYW9NE8JFNZZC7JT'
+    data_api_token: ''
+    contract_addr: ["0x55d398326f99059fF775485246999027B3197955", "0xbCfd4808CCF4Bdf7A61352e2762D2d4D0Bd455e1"]
     time_out: 15
 
   btc:

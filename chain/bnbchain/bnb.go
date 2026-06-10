@@ -1,4 +1,4 @@
-package ethereum
+package bnbchain
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -17,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/status-im/keycard-go/hexutils"
 
 	"github.com/dapplink-labs/chain-explorer-api/common/account"
 	"github.com/dapplink-labs/dapplink-wallet-api/chain"
@@ -29,32 +29,36 @@ import (
 )
 
 const (
-	ChainID              string = "DappLinkEthereum"
+	ChainID              string = "DappLinkBnbChain"
 	NativeTokenGasLimit  uint64 = 21000
 	Erc20TokenGasLimit   uint64 = 120000
 	MaxFeePerGas         int64  = 105000000000
 	MaxPriorityFeePerGas int64  = 75000000000
+	NativeTokenAddress   string = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+	erc20TransferMethod         = "a9059cbb"
 )
 
 type ChainAdaptor struct {
-	ethClient     evmbase.EthClient
-	ethDataClient *evmbase.EthData
+	ethClient         evmbase.EthClient
+	ethDataClient     *evmbase.EthData
+	contractAddrIndex map[string]struct{}
 }
 
 func NewChainAdaptor(conf *config.Config) (chain.IChainAdaptor, error) {
-	ethClient, err := evmbase.DialEthClient(context.Background(), conf.WalletNode.Eth.RpcUrl)
+	ethClient, err := evmbase.DialEthClient(context.Background(), conf.WalletNode.BNB.RpcUrl)
 	if err != nil {
 		log.Error("Dial eth client fail", "err", err)
 		return nil, err
 	}
-	ethDataClient, err := evmbase.NewEthDataClient(conf.WalletNode.Eth.DataApiUrl, conf.WalletNode.Eth.DataApiKey, time.Second*15)
+	ethDataClient, err := evmbase.NewEthDataClient(conf.WalletNode.BNB.DataApiUrl, conf.WalletNode.BNB.DataApiKey, time.Second*15)
 	if err != nil {
 		log.Error("new eth data client fail", "err", err)
 		return nil, err
 	}
 	return &ChainAdaptor{
-		ethClient:     ethClient,
-		ethDataClient: ethDataClient,
+		ethClient:         ethClient,
+		ethDataClient:     ethDataClient,
+		contractAddrIndex: newContractAddrIndex(conf.WalletNode.BNB.ContractAddr),
 	}, nil
 }
 
@@ -129,14 +133,12 @@ func (c ChainAdaptor) GetLastestBlock(ctx context.Context, req *walletapi.Lastes
 
 func (c ChainAdaptor) GetBlock(ctx context.Context, req *walletapi.BlockRequest) (*walletapi.BlockResponse, error) {
 	hashHeigh := req.HashHeight
-	var isError bool
 	var rpcBlock *evmbase.RpcBlock
 	var err error
 	if req.IsBlockHash {
 		rpcBlock, err = c.ethClient.BlockByHash(common.HexToHash(hashHeigh))
 		if err != nil {
 			log.Error("Get block information by hash fail", "err", err)
-			isError = true
 		}
 	} else {
 		blockNumber := new(big.Int)
@@ -144,35 +146,39 @@ func (c ChainAdaptor) GetBlock(ctx context.Context, req *walletapi.BlockRequest)
 		rpcBlock, err = c.ethClient.BlockByNumber(blockNumber)
 		if err != nil {
 			log.Error("Get block information by heigh fail", "err", err)
-			isError = true
 		}
+	}
+	if err != nil || rpcBlock == nil {
+		return &walletapi.BlockResponse{
+			Code: common2.ReturnCode_ERROR,
+			Msg:  "get block failed",
+		}, nil
 	}
 	log.Info("Get block info by hash", "hash", hashHeigh, "rpcBlock", rpcBlock, "Transactions", len(rpcBlock.Transactions), "timestamp", rpcBlock.Timestamp)
 
-	var transactionList []*walletapi.TransactionList
-	for _, bockItem := range rpcBlock.Transactions {
-		if bockItem.To == "" {
-			continue
-		}
-		var fromList []*walletapi.FromAddress
-		var toList []*walletapi.ToAddress
-		fromList = append(fromList, &walletapi.FromAddress{
-			Address: bockItem.From,
-			Amount:  bockItem.Value,
-		})
-		toList = append(toList, &walletapi.ToAddress{
-			Address: bockItem.From,
-			Amount:  bockItem.Value,
-		})
-		txItem := &walletapi.TransactionList{
-			TxHash: bockItem.Hash,
-			Fee:    bockItem.GasPrice,
-			Status: 0,
-			From:   fromList,
-			To:     toList,
-		}
-		transactionList = append(transactionList, txItem)
+	blockHeight, heightErr := rpcBlock.NumberUint64()
+	if heightErr != nil {
+		log.Warn("Failed to decode block number", "err", heightErr, "number", rpcBlock.Number)
 	}
+
+	txResults := make([]*walletapi.TransactionList, len(rpcBlock.Transactions))
+	var wg sync.WaitGroup
+	for i, blockItem := range rpcBlock.Transactions {
+		wg.Add(1)
+		go func(index int, tx evmbase.TransactionList) {
+			defer wg.Done()
+			txResults[index] = c.buildBlockTransaction(tx, rpcBlock.Hash.String(), blockHeight)
+		}(i, blockItem)
+	}
+	wg.Wait()
+
+	transactionList := make([]*walletapi.TransactionList, 0, len(txResults))
+	for _, txItem := range txResults {
+		if txItem != nil {
+			transactionList = append(transactionList, txItem)
+		}
+	}
+
 	timestamp, err := rpcBlock.TimestampUint64()
 	if err != nil {
 		log.Error("Failed to decode timestamp", "err", err, "timestamp", rpcBlock.Timestamp)
@@ -181,28 +187,117 @@ func (c ChainAdaptor) GetBlock(ctx context.Context, req *walletapi.BlockRequest)
 			Msg:  "failed to decode block timestamp",
 		}, nil
 	}
-	if !isError {
-		return &walletapi.BlockResponse{
-			Code:         common2.ReturnCode_SUCCESS,
-			Msg:          "get block success",
-			Height:       rpcBlock.Number,
-			Hash:         rpcBlock.Hash.String(),
-			ParentHash:   rpcBlock.ParentHash.String(),
-			Timestamp:    timestamp,
-			Transactions: transactionList,
-		}, nil
-	}
 	return &walletapi.BlockResponse{
-		Code: common2.ReturnCode_ERROR,
-		Msg:  "get block failed",
+		Code:         common2.ReturnCode_SUCCESS,
+		Msg:          "get block success",
+		Height:       rpcBlock.Number,
+		Hash:         rpcBlock.Hash.String(),
+		ParentHash:   rpcBlock.ParentHash.String(),
+		Timestamp:    timestamp,
+		Transactions: transactionList,
 	}, nil
 }
 
+func newContractAddrIndex(contractAddrs []string) map[string]struct{} {
+	index := make(map[string]struct{}, len(contractAddrs))
+	for _, addr := range contractAddrs {
+		normalized := normalizeAddress(addr)
+		if normalized == "" {
+			continue
+		}
+		index[normalized] = struct{}{}
+	}
+	return index
+}
+
+func normalizeAddress(address string) string {
+	if address == "" {
+		return ""
+	}
+	if common.IsHexAddress(address) {
+		return strings.ToLower(common.HexToAddress(address).Hex())
+	}
+	return strings.ToLower(address)
+}
+
+func (c ChainAdaptor) buildBlockTransaction(blockItem evmbase.TransactionList, blockHash string, blockHeight uint64) *walletapi.TransactionList {
+	if blockItem.To == "" {
+		return nil
+	}
+
+	txType := uint32(1)
+	contractAddress := NativeTokenAddress
+	amount := blockItem.Value
+	toAddress := blockItem.To
+
+	if c.shouldParseERC20Transfer(blockItem) {
+		parsedTo, parsedAmount, err := parseERC20TransferData(blockItem.Input)
+		if err != nil {
+			log.Warn("Parse ERC20 transfer data failed", "txHash", blockItem.Hash, "err", err)
+		} else {
+			txType = 3
+			contractAddress = blockItem.To
+			toAddress = parsedTo
+			amount = parsedAmount
+		}
+	}
+
+	fromList := []*walletapi.FromAddress{{
+		Address: blockItem.From,
+		Amount:  amount,
+	}}
+	toList := []*walletapi.ToAddress{{
+		Address: toAddress,
+		Amount:  amount,
+	}}
+
+	return &walletapi.TransactionList{
+		TxHash:          blockItem.Hash,
+		Fee:             blockItem.GasPrice,
+		Status:          0,
+		TxType:          txType,
+		ContractAddress: contractAddress,
+		From:            fromList,
+		To:              toList,
+		BlockHash:       blockHash,
+		BlockHeight:     blockHeight,
+	}
+}
+
+func (c ChainAdaptor) shouldParseERC20Transfer(blockItem evmbase.TransactionList) bool {
+	input := strings.TrimPrefix(blockItem.Input, "0x")
+	if len(input) < 8 || input[:8] != erc20TransferMethod {
+		return false
+	}
+	if len(c.contractAddrIndex) == 0 {
+		return true
+	}
+	_, ok := c.contractAddrIndex[normalizeAddress(blockItem.To)]
+	return ok
+}
+
+func parseERC20TransferData(input string) (string, string, error) {
+	data := strings.TrimPrefix(input, "0x")
+	if len(data) < 8+64+64 {
+		return "", "", fmt.Errorf("invalid ERC20 input length: %d", len(data))
+	}
+	if data[:8] != erc20TransferMethod {
+		return "", "", fmt.Errorf("unsupported method: %s", data[:8])
+	}
+
+	toData := data[8 : 8+64]
+	amountData := data[8+64 : 8+64+64]
+
+	toAddress := common.HexToAddress(toData[24:]).Hex()
+	amount := new(big.Int)
+	if _, ok := amount.SetString(amountData, 16); !ok {
+		return "", "", fmt.Errorf("invalid ERC20 amount: %s", amountData)
+	}
+
+	return toAddress, amount.String(), nil
+}
+
 func (c ChainAdaptor) GetTransactionByHash(ctx context.Context, req *walletapi.TransactionByHashRequest) (*walletapi.TransactionByHashResponse, error) {
-	/*
-	 * 目前该方法对于 native token 来说是可以的了，
-	 * 但是对于 ERC20 和 ERC721 来说并不够，手续费还没有处理
-	 */
 	tx, err := c.ethClient.TxByHash(common.HexToHash(req.Hash))
 	if err != nil {
 		if errors.Is(err, ethereum.NotFound) {
@@ -229,10 +324,11 @@ func (c ChainAdaptor) GetTransactionByHash(ctx context.Context, req *walletapi.T
 	var contractAddress string
 	var txType uint32
 	var txStatus walletapi.TxStatus
+	amount := tx.Value().String()
 
 	if tx.To() == nil {
-		toAddress = tx.To().Hex()
 		txType = 0 // 创建合约交易
+		toAddress = receipt.ContractAddress.Hex()
 	} else {
 		code, err := c.ethClient.EthGetCode(*tx.To())
 		if err != nil {
@@ -243,17 +339,23 @@ func (c ChainAdaptor) GetTransactionByHash(ctx context.Context, req *walletapi.T
 			txType = 1 // native token 转账
 			toAddress = tx.To().Hex()
 		} else {
-			/*
-			 * 判断 calldata 里面前 8 个字节的属于 erc20 还是 erc721 的转账的方法，是可以识别是否这些类型的转账
-			 */
 			txType = 2
 			contractAddress = tx.To().Hex()
-			method := tx.Data()[:4]
-			if hexutils.BytesToHex(method) == "0xa9059cbb" {
+			blockItem := evmbase.TransactionList{
+				To:    tx.To().Hex(),
+				Input: hex.EncodeToString(tx.Data()),
+			}
+			if c.shouldParseERC20Transfer(blockItem) {
 				txType = 3 // ERC20 转账
-				toAddress = hexutils.BytesToHex(common.LeftPadBytes(tx.Data(), 32))
-				amount := hexutils.BytesToHex(common.LeftPadBytes(tx.Data(), 32))
-				fmt.Println("amount", amount)
+				toAddress, amount, err = parseERC20TransferData(blockItem.Input)
+				if err != nil {
+					log.Warn("Parse ERC20 transfer data failed", "txHash", tx.Hash().Hex(), "err", err)
+					txType = 2
+					toAddress = tx.To().Hex()
+					amount = tx.Value().String()
+				}
+			} else {
+				toAddress = tx.To().Hex()
 			}
 		}
 	}
@@ -268,14 +370,14 @@ func (c ChainAdaptor) GetTransactionByHash(ctx context.Context, req *walletapi.T
 	log.Info("tx information", "fee", fee.String(), "toAddress", toAddress, "txStatus", txStatus)
 	var fromList []*walletapi.FromAddress
 	fromList = append(fromList, &walletapi.FromAddress{
-		Address: tx.To().String(),
-		Amount:  tx.Value().String(),
+		Address: txToFrom(tx),
+		Amount:  amount,
 	})
 
 	var toList []*walletapi.ToAddress
 	toList = append(toList, &walletapi.ToAddress{
-		Address: tx.To().String(),
-		Amount:  tx.Value().String(),
+		Address: toAddress,
+		Amount:  amount,
 	})
 
 	return &walletapi.TransactionByHashResponse{
@@ -289,8 +391,20 @@ func (c ChainAdaptor) GetTransactionByHash(ctx context.Context, req *walletapi.T
 			TxType:          txType,
 			From:            fromList,
 			To:              toList,
+			BlockHash:       receipt.BlockHash.Hex(),
+			BlockHeight:     receipt.BlockNumber.Uint64(),
 		},
 	}, nil
+}
+
+func txToFrom(tx *types.Transaction) string {
+	signer := types.LatestSignerForChainID(tx.ChainId())
+	from, err := types.Sender(signer, tx)
+	if err != nil {
+		log.Warn("Recover transaction sender failed", "txHash", tx.Hash().Hex(), "err", err)
+		return ""
+	}
+	return from.Hex()
 }
 
 func (c ChainAdaptor) GetTransactionByAddress(ctx context.Context, req *walletapi.TransactionByAddressRequest) (*walletapi.TransactionByAddressResponse, error) {
@@ -410,7 +524,7 @@ func (c ChainAdaptor) BuildUnSignTransaction(ctx context.Context, request *walle
 				UnsignedTx: "",
 			}
 		}
-		log.Info("ethereum BuildUnSignTransaction", "dFeeTx", util.ToJSONString(dFeeTx))
+		log.Info("bnb chain BuildUnSignTransaction", "dFeeTx", util.ToJSONString(dFeeTx))
 		rawTx, err := evmbase.CreateEip1559UnSignTx(dFeeTx, dFeeTx.ChainID)
 		if err != nil {
 			log.Error("CreateEip1559UnSignTx failed", "err", err)
@@ -438,9 +552,9 @@ func (c ChainAdaptor) BuildSignedTransaction(ctx context.Context, request *walle
 		if err != nil {
 			log.Error("buildDynamicFeeTx failed", "err", err)
 		}
-		log.Info("ethereum BuildSignedTransaction", "dFeeTx", util.ToJSONString(dFeeTx))
-		log.Info("ethereum BuildSignedTransaction", "dynamicFeeTx", util.ToJSONString(dynamicFeeTx))
-		log.Info("ethereum BuildSignedTransaction", "req.Signature", txWithSignature.Signature)
+		log.Info("bnb chain BuildSignedTransaction", "dFeeTx", util.ToJSONString(dFeeTx))
+		log.Info("bnb chain BuildSignedTransaction", "dynamicFeeTx", util.ToJSONString(dynamicFeeTx))
+		log.Info("bnb chain BuildSignedTransaction", "req.Signature", txWithSignature.Signature)
 
 		inputSignatureByteList, err := hex.DecodeString(txWithSignature.Signature)
 		if err != nil {
@@ -463,7 +577,7 @@ func (c ChainAdaptor) BuildSignedTransaction(ctx context.Context, request *walle
 			}
 		}
 
-		log.Info("ethereum BuildSignedTransaction", "rawTx", rawTx)
+		log.Info("bnb chain BuildSignedTransaction", "rawTx", rawTx)
 
 		sender, err := types.Sender(signer, signedTx)
 		if err != nil {
@@ -481,7 +595,7 @@ func (c ChainAdaptor) BuildSignedTransaction(ctx context.Context, request *walle
 				sender.Hex(),
 			)
 		}
-		log.Info("ethereum BuildSignedTransaction", "sender", sender.Hex())
+		log.Info("bnb chain BuildSignedTransaction", "sender", sender.Hex())
 		signedTransactionList = append(signedTransactionList, &signedTransaction)
 	}
 
