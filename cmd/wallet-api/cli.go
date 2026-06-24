@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -16,9 +15,7 @@ import (
 
 func runRpc(ctx *cli.Context, shutdown context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 	fmt.Println("running grpc services...")
-	var f = flag.String("c", "config.yml", "config path")
-	flag.Parse()
-	cfg, err := config.NewConfig(*f)
+	cfg, err := config.NewConfig(ctx.String(flags2.ConfigPathFlag.Name))
 	if err != nil {
 		log.Error("new config fail", "err", err)
 		return nil, err

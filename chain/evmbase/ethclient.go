@@ -69,6 +69,7 @@ type EthClient interface {
 	BlockHeaderByNumber(*big.Int) (*types.Header, error)
 	BlockHeaderByHash(common.Hash) (*types.Header, error)
 	BlockHeadersByRange(*big.Int, *big.Int, uint) ([]types.Header, error)
+	BlocksByRange(*big.Int, *big.Int, uint) ([]RpcBlock, error)
 	BlockByNumber(*big.Int) (*RpcBlock, error)
 	BlockByHash(common.Hash) (*RpcBlock, error)
 	TxCountByAddress(common.Address) (hexutil.Uint64, error)
@@ -207,6 +208,48 @@ func (c *clnt) BlockHeadersByRange(startHeight, endHeight *big.Int, chainId uint
 	headers = headers[:size]
 
 	return headers, nil
+}
+
+func (c *clnt) BlocksByRange(startHeight, endHeight *big.Int, chainId uint) ([]RpcBlock, error) {
+	if startHeight.Cmp(endHeight) == 0 {
+		block, err := c.BlockByNumber(startHeight)
+		if err != nil {
+			return nil, err
+		}
+		return []RpcBlock{*block}, nil
+	}
+
+	count := new(big.Int).Sub(endHeight, startHeight).Uint64() + 1
+	blocks := make([]RpcBlock, count)
+	batchElems := make([]rpc.BatchElem, count)
+	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
+	defer cancel()
+
+	for i := uint64(0); i < count; i++ {
+		height := new(big.Int).Add(startHeight, new(big.Int).SetUint64(i))
+		batchElems[i] = rpc.BatchElem{
+			Method: "eth_getBlockByNumber",
+			Args:   []interface{}{toBlockNumArg(height), true},
+			Result: &blocks[i],
+		}
+	}
+	if err := c.rpc.BatchCallContext(ctxwt, batchElems); err != nil {
+		return nil, err
+	}
+
+	size := 0
+	for _, batchElem := range batchElems {
+		if batchElem.Error != nil {
+			if size == 0 {
+				return nil, batchElem.Error
+			}
+			break
+		} else if batchElem.Result == nil {
+			break
+		}
+		size++
+	}
+	return blocks[:size], nil
 }
 
 func (c *clnt) BlockByNumber(number *big.Int) (*RpcBlock, error) {

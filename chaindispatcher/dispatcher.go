@@ -12,11 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/dapplink-labs/dapplink-wallet-api/chain"
-	"github.com/dapplink-labs/dapplink-wallet-api/chain/bitcoin"
 	"github.com/dapplink-labs/dapplink-wallet-api/chain/bnbchain"
-	"github.com/dapplink-labs/dapplink-wallet-api/chain/ethereum"
-	"github.com/dapplink-labs/dapplink-wallet-api/chain/solana"
-	"github.com/dapplink-labs/dapplink-wallet-api/chain/tron"
 	"github.com/dapplink-labs/dapplink-wallet-api/config"
 	"github.com/dapplink-labs/dapplink-wallet-api/protobuf/common"
 	"github.com/dapplink-labs/dapplink-wallet-api/protobuf/walletapi"
@@ -46,17 +42,17 @@ func NewChainDispatcher(conf *config.Config) (*ChainDispatcher, error) {
 	}
 
 	chainAdaptorFactoryMap := map[string]func(conf *config.Config) (chain.IChainAdaptor, error){
-		ethereum.ChainID: ethereum.NewChainAdaptor,
-		bitcoin.ChainID:  bitcoin.NewChainAdaptor,
-		solana.ChainID:   solana.NewChainAdaptor,
-		tron.ChainID:     tron.NewChainAdaptor,
+		//ethereum.ChainID: ethereum.NewChainAdaptor,
+		//bitcoin.ChainID:  bitcoin.NewChainAdaptor,
+		//solana.ChainID:   solana.NewChainAdaptor,
+		//tron.ChainID:     tron.NewChainAdaptor, //todo: add tron chain
 		bnbchain.ChainID: bnbchain.NewChainAdaptor,
 	}
 	supportedChains := []string{
-		ethereum.ChainID,
-		bitcoin.ChainID,
-		solana.ChainID,
-		tron.ChainID,
+		//ethereum.ChainID,
+		//bitcoin.ChainID,
+		//solana.ChainID,
+		//tron.ChainID,
 		bnbchain.ChainID,
 	}
 
@@ -94,7 +90,7 @@ func (d *ChainDispatcher) Interceptor(ctx context.Context, req interface{}, info
 	}
 	log.Info(method, "consumerToken", consumerToken, "req", req)
 	resp, err = handler(ctx, req)
-	log.Debug("Finish handling", "resp", resp, "err", err)
+	log.Debug("Finish handling", "err", err)
 	return
 }
 
@@ -169,6 +165,17 @@ func (d *ChainDispatcher) GetBlock(ctx context.Context, request *walletapi.Block
 		}, nil
 	}
 	return d.registry[request.ChainId].GetBlock(ctx, request)
+}
+
+func (d *ChainDispatcher) GetBatchBlock(ctx context.Context, request *walletapi.BatchBlockRequest) (*walletapi.BatchBlockResponse, error) {
+	resp := d.preHandler(request)
+	if resp != nil {
+		return &walletapi.BatchBlockResponse{
+			Code: common.ReturnCode_ERROR,
+			Msg:  "get batch block info failed",
+		}, nil
+	}
+	return d.registry[request.ChainId].GetBatchBlock(ctx, request)
 }
 
 func (d *ChainDispatcher) GetTransactionByHash(ctx context.Context, request *walletapi.TransactionByHashRequest) (*walletapi.TransactionByHashResponse, error) {

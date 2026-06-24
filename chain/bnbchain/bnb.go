@@ -29,13 +29,11 @@ import (
 )
 
 const (
-	ChainID              string = "DappLinkBnbChain"
-	NativeTokenGasLimit  uint64 = 21000
-	Erc20TokenGasLimit   uint64 = 120000
-	MaxFeePerGas         int64  = 105000000000
-	MaxPriorityFeePerGas int64  = 75000000000
-	NativeTokenAddress   string = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
-	erc20TransferMethod         = "a9059cbb"
+	ChainID             string = "DappLinkBnbChain"
+	NativeTokenGasLimit uint64 = 21000
+	Erc20TokenGasLimit  uint64 = 120000
+	NativeTokenAddress  string = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+	erc20TransferMethod        = "a9059cbb"
 )
 
 type ChainAdaptor struct {
@@ -154,47 +152,103 @@ func (c ChainAdaptor) GetBlock(ctx context.Context, req *walletapi.BlockRequest)
 			Msg:  "get block failed",
 		}, nil
 	}
-	log.Info("Get block info by hash", "hash", hashHeigh, "rpcBlock", rpcBlock, "Transactions", len(rpcBlock.Transactions), "timestamp", rpcBlock.Timestamp)
+	log.Info("Get block info by hash", "hash", hashHeigh, "Transactions", len(rpcBlock.Transactions), "timestamp", rpcBlock.Timestamp)
 
-	blockHeight, heightErr := rpcBlock.NumberUint64()
-	if heightErr != nil {
-		log.Warn("Failed to decode block number", "err", heightErr, "number", rpcBlock.Number)
-	}
-
-	txResults := make([]*walletapi.TransactionList, len(rpcBlock.Transactions))
-	var wg sync.WaitGroup
-	for i, blockItem := range rpcBlock.Transactions {
-		wg.Add(1)
-		go func(index int, tx evmbase.TransactionList) {
-			defer wg.Done()
-			txResults[index] = c.buildBlockTransaction(tx, rpcBlock.Hash.String(), blockHeight)
-		}(i, blockItem)
-	}
-	wg.Wait()
-
-	transactionList := make([]*walletapi.TransactionList, 0, len(txResults))
-	for _, txItem := range txResults {
-		if txItem != nil {
-			transactionList = append(transactionList, txItem)
-		}
-	}
-
-	timestamp, err := rpcBlock.TimestampUint64()
+	blockWithTx, err := c.buildBlockWithTransactions(rpcBlock)
 	if err != nil {
-		log.Error("Failed to decode timestamp", "err", err, "timestamp", rpcBlock.Timestamp)
+		log.Error("Failed to build block with transactions", "err", err)
 		return &walletapi.BlockResponse{
 			Code: common2.ReturnCode_ERROR,
-			Msg:  "failed to decode block timestamp",
+			Msg:  err.Error(),
 		}, nil
 	}
 	return &walletapi.BlockResponse{
 		Code:         common2.ReturnCode_SUCCESS,
 		Msg:          "get block success",
-		Height:       rpcBlock.Number,
-		Hash:         rpcBlock.Hash.String(),
-		ParentHash:   rpcBlock.ParentHash.String(),
-		Timestamp:    timestamp,
-		Transactions: transactionList,
+		Height:       blockWithTx.Height,
+		Hash:         blockWithTx.Hash,
+		ParentHash:   blockWithTx.ParentHash,
+		Timestamp:    blockWithTx.Timestamp,
+		Transactions: blockWithTx.Transactions,
+	}, nil
+}
+
+func (c ChainAdaptor) GetBatchBlock(ctx context.Context, req *walletapi.BatchBlockRequest) (*walletapi.BatchBlockResponse, error) {
+	startHeight := new(big.Int)
+	endHeight := new(big.Int)
+	var ok bool
+	if _, ok = startHeight.SetString(req.NextHeight, 10); !ok {
+		return &walletapi.BatchBlockResponse{
+			Code: common2.ReturnCode_ERROR,
+			Msg:  "invalid next height",
+		}, nil
+	}
+	if _, ok = endHeight.SetString(req.EndHeight, 10); !ok {
+		return &walletapi.BatchBlockResponse{
+			Code: common2.ReturnCode_ERROR,
+			Msg:  "invalid end height",
+		}, nil
+	}
+	if startHeight.Cmp(endHeight) > 0 {
+		return &walletapi.BatchBlockResponse{
+			Code: common2.ReturnCode_ERROR,
+			Msg:  "next height is greater than end height",
+		}, nil
+	}
+
+	if req.WithTransactions {
+		blocks, err := c.ethClient.BlocksByRange(startHeight, endHeight, 56)
+		if err != nil {
+			log.Error("Get batch blocks with transactions fail", "err", err, "start", startHeight, "end", endHeight)
+			return &walletapi.BatchBlockResponse{
+				Code: common2.ReturnCode_ERROR,
+				Msg:  "get batch blocks with transactions failed",
+			}, nil
+		}
+
+		blockInfos := make([]*walletapi.BlockWithTransactions, len(blocks))
+		for i := range blocks {
+			blockInfo, err := c.buildBlockWithTransactions(&blocks[i])
+			if err != nil {
+				log.Error("Failed to build batch block with transactions", "err", err, "number", blocks[i].Number)
+				return &walletapi.BatchBlockResponse{
+					Code: common2.ReturnCode_ERROR,
+					Msg:  "failed to build batch block with transactions",
+				}, nil
+			}
+			blockInfos[i] = blockInfo
+		}
+
+		return &walletapi.BatchBlockResponse{
+			Code:   common2.ReturnCode_SUCCESS,
+			Msg:    "get batch block success",
+			Blocks: blockInfos,
+		}, nil
+	}
+
+	headers, err := c.ethClient.BlockHeadersByRange(startHeight, endHeight, 56)
+	if err != nil {
+		log.Error("Get batch block headers fail", "err", err, "start", startHeight, "end", endHeight)
+		return &walletapi.BatchBlockResponse{
+			Code: common2.ReturnCode_ERROR,
+			Msg:  "get batch block headers failed",
+		}, nil
+	}
+
+	headerInfos := make([]*walletapi.BlockHeaderInfo, len(headers))
+	for i, header := range headers {
+		headerInfos[i] = &walletapi.BlockHeaderInfo{
+			Height:     header.Number.String(),
+			Hash:       header.Hash().Hex(),
+			ParentHash: header.ParentHash.Hex(),
+			Timestamp:  header.Time,
+		}
+	}
+
+	return &walletapi.BatchBlockResponse{
+		Code:    common2.ReturnCode_SUCCESS,
+		Msg:     "get batch block success",
+		Headers: headerInfos,
 	}, nil
 }
 
@@ -218,6 +272,44 @@ func normalizeAddress(address string) string {
 		return strings.ToLower(common.HexToAddress(address).Hex())
 	}
 	return strings.ToLower(address)
+}
+
+func (c ChainAdaptor) buildBlockWithTransactions(rpcBlock *evmbase.RpcBlock) (*walletapi.BlockWithTransactions, error) {
+	blockHeight, heightErr := rpcBlock.NumberUint64()
+	if heightErr != nil {
+		return nil, fmt.Errorf("failed to decode block number: %w", heightErr)
+	}
+
+	txResults := make([]*walletapi.TransactionList, len(rpcBlock.Transactions))
+	var wg sync.WaitGroup
+	for i, blockItem := range rpcBlock.Transactions {
+		wg.Add(1)
+		go func(index int, tx evmbase.TransactionList) {
+			defer wg.Done()
+			txResults[index] = c.buildBlockTransaction(tx, rpcBlock.Hash.String(), blockHeight)
+		}(i, blockItem)
+	}
+	wg.Wait()
+
+	transactionList := make([]*walletapi.TransactionList, 0, len(txResults))
+	for _, txItem := range txResults {
+		if txItem != nil {
+			transactionList = append(transactionList, txItem)
+		}
+	}
+
+	timestamp, err := rpcBlock.TimestampUint64()
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode block timestamp: %w", err)
+	}
+
+	return &walletapi.BlockWithTransactions{
+		Height:       rpcBlock.Number,
+		Hash:         rpcBlock.Hash.String(),
+		ParentHash:   rpcBlock.ParentHash.String(),
+		Timestamp:    timestamp,
+		Transactions: transactionList,
+	}, nil
 }
 
 func (c ChainAdaptor) buildBlockTransaction(blockItem evmbase.TransactionList, blockHash string, blockHeight uint64) *walletapi.TransactionList {
@@ -483,10 +575,11 @@ func (c ChainAdaptor) SendTransaction(ctx context.Context, req *walletapi.SendTr
 		var txRet walletapi.RawTransactionReturn
 		transaction, err := c.ethClient.SendRawTransaction(txItem.RawTx)
 		if err != nil {
+			log.Error("SendRawTransaction failed", "err", err, "rawTxLen", len(txItem.RawTx))
 			txRet = walletapi.RawTransactionReturn{
 				TxHash:    "",
 				IsSuccess: false,
-				Message:   "this tx send failed",
+				Message:   err.Error(),
 			}
 		} else {
 			txRet = walletapi.RawTransactionReturn{
@@ -658,11 +751,17 @@ func (c *ChainAdaptor) buildDynamicFeeTx(base64Tx string) (*types.DynamicFeeTx, 
 		return nil, nil, err
 	}
 
+	gasTipCap, gasFeeCap, err := evmbase.ResolveEip1559GasFees(c.ethClient)
+	if err != nil {
+		log.Warn("resolve gas fees from rpc failed, using defaults", "err", err)
+		gasTipCap, gasFeeCap = evmbase.DefaultEip1559GasFees()
+	}
+
 	dFeeTx := &types.DynamicFeeTx{
 		ChainID:   chainID,
 		Nonce:     txNonce.Uint64(),
-		GasTipCap: big.NewInt(int64(MaxPriorityFeePerGas)),
-		GasFeeCap: big.NewInt(int64(MaxFeePerGas)),
+		GasTipCap: gasTipCap,
+		GasFeeCap: gasFeeCap,
 		Gas:       GasLimit,
 		To:        &finalToAddress,
 		Value:     finalAmount,

@@ -31,4 +31,5 @@ go.work.sum
 .idea/
 # .vscode/
 wallet-api
+config_local.yml
 

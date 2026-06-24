@@ -203,6 +203,13 @@ func (c *ChainAdaptor) GetBlock(ctx context.Context, req *walletapi.BlockRequest
 	}, nil
 }
 
+func (c *ChainAdaptor) GetBatchBlock(ctx context.Context, req *walletapi.BatchBlockRequest) (*walletapi.BatchBlockResponse, error) {
+	return &walletapi.BatchBlockResponse{
+		Code: common.ReturnCode_ERROR,
+		Msg:  "batch block query is not supported",
+	}, nil
+}
+
 func (c *ChainAdaptor) GetTransactionByHash(ctx context.Context, req *walletapi.TransactionByHashRequest) (*walletapi.TransactionByHashResponse, error) {
 	tx, err := c.tronClient.GetTransactionByHash(req.Hash)
 	if err != nil {

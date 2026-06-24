@@ -9,16 +9,17 @@ func prefixEnvVars(name string) []string {
 }
 
 var (
-	LevelDbPathFlag = &cli.StringFlag{
+	ConfigPathFlag = &cli.StringFlag{
 		Name:    "yaml-config",
 		Usage:   "The path of the yaml config file",
 		EnvVars: prefixEnvVars("YAML_CONFIG"),
-		Value:   "./",
+		Aliases: []string{"c"},
+		Value:   "./config.yaml",
 	}
 )
 
 var requireFlags = []cli.Flag{
-	LevelDbPathFlag,
+	ConfigPathFlag,
 }
 
 var optionalFlags = []cli.Flag{}
