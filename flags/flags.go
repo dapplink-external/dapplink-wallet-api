@@ -16,13 +16,26 @@ var (
 		Aliases: []string{"c"},
 		Value:   "./config.yaml",
 	}
+	SponsorPrivateKeyFlag = &cli.StringFlag{
+		Name:    "sponsor-private-key",
+		Usage:   "Sponsor EOA private key for AA SetCode transactions (hex, with or without 0x prefix)",
+		EnvVars: append([]string{"SPONSOR_KEY"}, prefixEnvVars("SPONSOR_KEY")...),
+	}
+	PaymasterSignerKeyFlag = &cli.StringFlag{
+		Name:    "paymaster-signer-key",
+		Usage:   "Paymaster verifying signer private key for off-chain UserOp authorization (hex, with or without 0x prefix)",
+		EnvVars: append([]string{"PAYMASTER_SIGNER_KEY"}, prefixEnvVars("PAYMASTER_SIGNER_KEY")...),
+	}
 )
 
 var requireFlags = []cli.Flag{
 	ConfigPathFlag,
 }
 
-var optionalFlags = []cli.Flag{}
+var optionalFlags = []cli.Flag{
+	SponsorPrivateKeyFlag,
+	PaymasterSignerKeyFlag,
+}
 
 var Flags []cli.Flag
 

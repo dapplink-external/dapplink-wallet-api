@@ -31,6 +31,7 @@ type CommonReply = walletapi.CommonResponse
 type ChainId = string
 
 type ChainDispatcher struct {
+	walletapi.UnimplementedWalletApiGateWayServiceServer
 	conf     *config.Config
 	registry map[ChainId]chain.IChainAdaptor
 }
@@ -264,4 +265,26 @@ func (d *ChainDispatcher) GetAddressApproveList(ctx context.Context, request *wa
 		}, nil
 	}
 	return d.registry[request.ChainId].GetAddressApproveList(ctx, request)
+}
+
+func (d *ChainDispatcher) BuildSponsoredTransfer(ctx context.Context, request *walletapi.SponsoredTransferRequest) (*walletapi.SponsoredTransferBuildResponse, error) {
+	resp := d.preHandler(request)
+	if resp != nil {
+		return &walletapi.SponsoredTransferBuildResponse{
+			Code: common.ReturnCode_ERROR,
+			Msg:  "build sponsored transfer failed",
+		}, nil
+	}
+	return d.registry[request.ChainId].BuildSponsoredTransfer(ctx, request)
+}
+
+func (d *ChainDispatcher) SendSponsoredTransfer(ctx context.Context, request *walletapi.SponsoredTransferSendRequest) (*walletapi.SendTransactionResponse, error) {
+	resp := d.preHandler(request)
+	if resp != nil {
+		return &walletapi.SendTransactionResponse{
+			Code: common.ReturnCode_ERROR,
+			Msg:  "send sponsored transfer failed",
+		}, nil
+	}
+	return d.registry[request.ChainId].SendSponsoredTransfer(ctx, request)
 }

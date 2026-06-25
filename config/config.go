@@ -23,6 +23,18 @@ type Node struct {
 	ContractAddr []string `yaml:"contract_addr"`
 	TpApiUrl     string   `yaml:"tp_api_url"`
 	TimeOut      uint64   `yaml:"time_out"`
+	AA           AAConfig `yaml:"aa"`
+}
+
+type AAConfig struct {
+	Enabled             bool   `yaml:"enabled"`
+	EntryPoint          string `yaml:"entry_point"`
+	Delegate            string `yaml:"delegate"`
+	Paymaster           string `yaml:"paymaster"`
+	SponsorAddress      string `yaml:"sponsor_address"`
+	SponsorPrivateKey   string `yaml:"-"`
+	VerifyingPrivateKey string `yaml:"-"`
+	ChainIDNumeric      string `yaml:"chain_id_numeric"`
 }
 
 type WalletNode struct {
@@ -53,7 +65,7 @@ type Config struct {
 	AccessToken    string     `yaml:"access_token"`
 }
 
-func NewConfig(path string) (*Config, error) {
+func NewConfig(path, sponsorPrivateKey, verifyingPrivateKey string) (*Config, error) {
 	var config = new(Config)
 	h := log.NewTerminalHandler(os.Stdout, true)
 	log.SetDefault(log.NewLogger(h))
@@ -69,6 +81,9 @@ func NewConfig(path string) (*Config, error) {
 		log.Error("unmarshal config file error", "err", err)
 		return nil, err
 	}
+
+	config.WalletNode.BNB.AA.SponsorPrivateKey = sponsorPrivateKey
+	config.WalletNode.BNB.AA.VerifyingPrivateKey = verifyingPrivateKey
 	return config, nil
 }
 

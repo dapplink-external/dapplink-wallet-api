@@ -33,6 +33,8 @@ const (
 	WalletApiGateWayService_BuildUnSignTransaction_FullMethodName  = "/dapplink.WalletApiGateWayService/buildUnSignTransaction"
 	WalletApiGateWayService_BuildSignedTransaction_FullMethodName  = "/dapplink.WalletApiGateWayService/buildSignedTransaction"
 	WalletApiGateWayService_GetAddressApproveList_FullMethodName   = "/dapplink.WalletApiGateWayService/getAddressApproveList"
+	WalletApiGateWayService_BuildSponsoredTransfer_FullMethodName  = "/dapplink.WalletApiGateWayService/buildSponsoredTransfer"
+	WalletApiGateWayService_SendSponsoredTransfer_FullMethodName   = "/dapplink.WalletApiGateWayService/sendSponsoredTransfer"
 )
 
 // WalletApiGateWayServiceClient is the client API for WalletApiGateWayService service.
@@ -58,6 +60,9 @@ type WalletApiGateWayServiceClient interface {
 	BuildSignedTransaction(ctx context.Context, in *SignedTransactionRequest, opts ...grpc.CallOption) (*SignedTransactionResponse, error)
 	// Web3 钱包扩展
 	GetAddressApproveList(ctx context.Context, in *AddressApproveListRequest, opts ...grpc.CallOption) (*AddressApproveListResponse, error)
+	// EIP-7702 + ERC-4337 sponsored transfer
+	BuildSponsoredTransfer(ctx context.Context, in *SponsoredTransferRequest, opts ...grpc.CallOption) (*SponsoredTransferBuildResponse, error)
+	SendSponsoredTransfer(ctx context.Context, in *SponsoredTransferSendRequest, opts ...grpc.CallOption) (*SendTransactionResponse, error)
 }
 
 type walletApiGateWayServiceClient struct {
@@ -208,8 +213,28 @@ func (c *walletApiGateWayServiceClient) GetAddressApproveList(ctx context.Contex
 	return out, nil
 }
 
+func (c *walletApiGateWayServiceClient) BuildSponsoredTransfer(ctx context.Context, in *SponsoredTransferRequest, opts ...grpc.CallOption) (*SponsoredTransferBuildResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SponsoredTransferBuildResponse)
+	err := c.cc.Invoke(ctx, WalletApiGateWayService_BuildSponsoredTransfer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletApiGateWayServiceClient) SendSponsoredTransfer(ctx context.Context, in *SponsoredTransferSendRequest, opts ...grpc.CallOption) (*SendTransactionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SendTransactionResponse)
+	err := c.cc.Invoke(ctx, WalletApiGateWayService_SendSponsoredTransfer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WalletApiGateWayServiceServer is the server API for WalletApiGateWayService service.
-// All implementations should embed UnimplementedWalletApiGateWayServiceServer
+// All implementations must embed UnimplementedWalletApiGateWayServiceServer
 // for forward compatibility.
 type WalletApiGateWayServiceServer interface {
 	// 链的支持层面
@@ -231,9 +256,13 @@ type WalletApiGateWayServiceServer interface {
 	BuildSignedTransaction(context.Context, *SignedTransactionRequest) (*SignedTransactionResponse, error)
 	// Web3 钱包扩展
 	GetAddressApproveList(context.Context, *AddressApproveListRequest) (*AddressApproveListResponse, error)
+	// EIP-7702 + ERC-4337 sponsored transfer
+	BuildSponsoredTransfer(context.Context, *SponsoredTransferRequest) (*SponsoredTransferBuildResponse, error)
+	SendSponsoredTransfer(context.Context, *SponsoredTransferSendRequest) (*SendTransactionResponse, error)
+	mustEmbedUnimplementedWalletApiGateWayServiceServer()
 }
 
-// UnimplementedWalletApiGateWayServiceServer should be embedded to have
+// UnimplementedWalletApiGateWayServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -281,6 +310,14 @@ func (UnimplementedWalletApiGateWayServiceServer) BuildSignedTransaction(context
 }
 func (UnimplementedWalletApiGateWayServiceServer) GetAddressApproveList(context.Context, *AddressApproveListRequest) (*AddressApproveListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAddressApproveList not implemented")
+}
+func (UnimplementedWalletApiGateWayServiceServer) BuildSponsoredTransfer(context.Context, *SponsoredTransferRequest) (*SponsoredTransferBuildResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BuildSponsoredTransfer not implemented")
+}
+func (UnimplementedWalletApiGateWayServiceServer) SendSponsoredTransfer(context.Context, *SponsoredTransferSendRequest) (*SendTransactionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SendSponsoredTransfer not implemented")
+}
+func (UnimplementedWalletApiGateWayServiceServer) mustEmbedUnimplementedWalletApiGateWayServiceServer() {
 }
 func (UnimplementedWalletApiGateWayServiceServer) testEmbeddedByValue() {}
 
@@ -554,6 +591,42 @@ func _WalletApiGateWayService_GetAddressApproveList_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WalletApiGateWayService_BuildSponsoredTransfer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SponsoredTransferRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletApiGateWayServiceServer).BuildSponsoredTransfer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletApiGateWayService_BuildSponsoredTransfer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletApiGateWayServiceServer).BuildSponsoredTransfer(ctx, req.(*SponsoredTransferRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalletApiGateWayService_SendSponsoredTransfer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SponsoredTransferSendRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletApiGateWayServiceServer).SendSponsoredTransfer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletApiGateWayService_SendSponsoredTransfer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletApiGateWayServiceServer).SendSponsoredTransfer(ctx, req.(*SponsoredTransferSendRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WalletApiGateWayService_ServiceDesc is the grpc.ServiceDesc for WalletApiGateWayService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -616,6 +689,14 @@ var WalletApiGateWayService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "getAddressApproveList",
 			Handler:    _WalletApiGateWayService_GetAddressApproveList_Handler,
+		},
+		{
+			MethodName: "buildSponsoredTransfer",
+			Handler:    _WalletApiGateWayService_BuildSponsoredTransfer_Handler,
+		},
+		{
+			MethodName: "sendSponsoredTransfer",
+			Handler:    _WalletApiGateWayService_SendSponsoredTransfer_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

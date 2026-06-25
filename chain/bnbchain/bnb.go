@@ -37,9 +37,11 @@ const (
 )
 
 type ChainAdaptor struct {
+	conf              *config.Config
 	ethClient         evmbase.EthClient
 	ethDataClient     *evmbase.EthData
 	contractAddrIndex map[string]struct{}
+	entryPointAddress common.Address
 }
 
 func NewChainAdaptor(conf *config.Config) (chain.IChainAdaptor, error) {
@@ -54,9 +56,11 @@ func NewChainAdaptor(conf *config.Config) (chain.IChainAdaptor, error) {
 		return nil, err
 	}
 	return &ChainAdaptor{
+		conf:              conf,
 		ethClient:         ethClient,
 		ethDataClient:     ethDataClient,
 		contractAddrIndex: newContractAddrIndex(conf.WalletNode.BNB.ContractAddr),
+		entryPointAddress: common.HexToAddress(conf.WalletNode.BNB.AA.EntryPoint),
 	}, nil
 }
 
@@ -321,6 +325,7 @@ func (c ChainAdaptor) buildBlockTransaction(blockItem evmbase.TransactionList, b
 	contractAddress := NativeTokenAddress
 	amount := blockItem.Value
 	toAddress := blockItem.To
+	fromAddress := blockItem.From
 
 	if c.shouldParseERC20Transfer(blockItem) {
 		parsedTo, parsedAmount, err := parseERC20TransferData(blockItem.Input)
@@ -332,10 +337,16 @@ func (c ChainAdaptor) buildBlockTransaction(blockItem evmbase.TransactionList, b
 			toAddress = parsedTo
 			amount = parsedAmount
 		}
+	} else if transfer, parsed := c.tryParseUserOpERC20Transfer(blockItem); parsed {
+		txType = 3
+		contractAddress = transfer.Contract
+		fromAddress = transfer.From
+		toAddress = transfer.To
+		amount = transfer.Amount
 	}
 
 	fromList := []*walletapi.FromAddress{{
-		Address: blockItem.From,
+		Address: fromAddress,
 		Amount:  amount,
 	}}
 	toList := []*walletapi.ToAddress{{
@@ -417,6 +428,7 @@ func (c ChainAdaptor) GetTransactionByHash(ctx context.Context, req *walletapi.T
 	var txType uint32
 	var txStatus walletapi.TxStatus
 	amount := tx.Value().String()
+	fromAddress := txToFrom(tx)
 
 	if tx.To() == nil {
 		txType = 0 // 创建合约交易
@@ -434,6 +446,8 @@ func (c ChainAdaptor) GetTransactionByHash(ctx context.Context, req *walletapi.T
 			txType = 2
 			contractAddress = tx.To().Hex()
 			blockItem := evmbase.TransactionList{
+				Hash:  tx.Hash().Hex(),
+				From:  fromAddress,
 				To:    tx.To().Hex(),
 				Input: hex.EncodeToString(tx.Data()),
 			}
@@ -446,6 +460,12 @@ func (c ChainAdaptor) GetTransactionByHash(ctx context.Context, req *walletapi.T
 					toAddress = tx.To().Hex()
 					amount = tx.Value().String()
 				}
+			} else if transfer, parsed := c.tryParseUserOpERC20Transfer(blockItem); parsed {
+				txType = 3
+				contractAddress = transfer.Contract
+				fromAddress = transfer.From
+				toAddress = transfer.To
+				amount = transfer.Amount
 			} else {
 				toAddress = tx.To().Hex()
 			}
@@ -459,10 +479,10 @@ func (c ChainAdaptor) GetTransactionByHash(ctx context.Context, req *walletapi.T
 	}
 	fee := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
 
-	log.Info("tx information", "fee", fee.String(), "toAddress", toAddress, "txStatus", txStatus)
+	log.Info("tx information", "fee", fee.String(), "fromAddress", fromAddress, "toAddress", toAddress, "txStatus", txStatus)
 	var fromList []*walletapi.FromAddress
 	fromList = append(fromList, &walletapi.FromAddress{
-		Address: txToFrom(tx),
+		Address: fromAddress,
 		Amount:  amount,
 	})
 

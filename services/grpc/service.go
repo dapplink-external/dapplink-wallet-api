@@ -47,15 +47,17 @@ func (s *GrpcService) Start(ctx context.Context) error {
 
 		log.Info("rpc sever config", "addr", addr)
 
-		opt := grpc.MaxRecvMsgSize(MaxReceivedMessageSize)
-
 		dispatcher, err := chaindispatcher.NewChainDispatcher(s.conf)
 		if err != nil {
 			log.Error("new chain dispatcher fail", "err", err)
 			return
 		}
 
-		gs := grpc.NewServer(opt, grpc.ChainUnaryInterceptor(dispatcher.Interceptor))
+		gs := grpc.NewServer(
+			grpc.MaxRecvMsgSize(MaxReceivedMessageSize),
+			grpc.MaxSendMsgSize(MaxReceivedMessageSize),
+			grpc.ChainUnaryInterceptor(dispatcher.Interceptor),
+		)
 		defer gs.GracefulStop()
 
 		walletapi.RegisterWalletApiGateWayServiceServer(gs, dispatcher)

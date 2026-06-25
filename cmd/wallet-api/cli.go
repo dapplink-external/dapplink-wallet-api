@@ -15,7 +15,11 @@ import (
 
 func runRpc(ctx *cli.Context, shutdown context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 	fmt.Println("running grpc services...")
-	cfg, err := config.NewConfig(ctx.String(flags2.ConfigPathFlag.Name))
+	cfg, err := config.NewConfig(
+		ctx.String(flags2.ConfigPathFlag.Name),
+		ctx.String(flags2.SponsorPrivateKeyFlag.Name),
+		ctx.String(flags2.PaymasterSignerKeyFlag.Name),
+	)
 	if err != nil {
 		log.Error("new config fail", "err", err)
 		return nil, err

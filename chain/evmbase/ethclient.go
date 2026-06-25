@@ -21,9 +21,10 @@ import (
 )
 
 const (
-	defaultDialTimeout    = 5 * time.Second
-	defaultDialAttempts   = 5
-	defaultRequestTimeout = 10 * time.Second
+	defaultDialTimeout         = 5 * time.Second
+	defaultDialAttempts        = 5
+	defaultRequestTimeout      = 10 * time.Second
+	defaultBatchRequestTimeout = 120 * time.Second
 )
 
 var (
@@ -81,6 +82,7 @@ type EthClient interface {
 	EthGetCode(common.Address) (string, error)
 	GetBalance(address common.Address) (*big.Int, error)
 	GetTransactionAccount(address common.Address) (*big.Int, error)
+	CallContract(msg ethereum.CallMsg) ([]byte, error)
 
 	Close()
 }
@@ -153,7 +155,7 @@ func (c *clnt) BlockHeadersByRange(startHeight, endHeight *big.Int, chainId uint
 	count := new(big.Int).Sub(endHeight, startHeight).Uint64() + 1
 	headers := make([]types.Header, count)
 	batchElems := make([]rpc.BatchElem, count)
-	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
+	ctxwt, cancel := context.WithTimeout(context.Background(), defaultBatchRequestTimeout)
 	defer cancel()
 
 	if chainId == uint(global_const.ZkFairSepoliaChainId) ||
@@ -222,7 +224,7 @@ func (c *clnt) BlocksByRange(startHeight, endHeight *big.Int, chainId uint) ([]R
 	count := new(big.Int).Sub(endHeight, startHeight).Uint64() + 1
 	blocks := make([]RpcBlock, count)
 	batchElems := make([]rpc.BatchElem, count)
-	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
+	ctxwt, cancel := context.WithTimeout(context.Background(), defaultBatchRequestTimeout)
 	defer cancel()
 
 	for i := uint64(0); i < count; i++ {
@@ -395,6 +397,24 @@ func (c *clnt) GetTransactionAccount(address common.Address) (*big.Int, error) {
 	}
 	nonce := (*big.Int)(&result)
 	return nonce, nil
+}
+
+func (c *clnt) CallContract(msg ethereum.CallMsg) ([]byte, error) {
+	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
+	defer cancel()
+	var result hexutil.Bytes
+	arg := map[string]interface{}{
+		"to":   msg.To,
+		"data": hexutil.Bytes(msg.Data),
+	}
+	if msg.From != (common.Address{}) {
+		arg["from"] = msg.From
+	}
+	err := c.rpc.CallContext(ctxwt, &result, "eth_call", arg, "latest")
+	if err != nil {
+		return nil, fmt.Errorf("eth_call failed: %w", err)
+	}
+	return result, nil
 }
 
 func (c *clnt) Close() {

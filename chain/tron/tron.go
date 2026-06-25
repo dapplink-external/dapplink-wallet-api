@@ -477,3 +477,11 @@ func (c *ChainAdaptor) GetAddressApproveList(ctx context.Context, request *walle
 		Msg:  "don't support in this stage, support in the future",
 	}, nil
 }
+
+func (c *ChainAdaptor) BuildSponsoredTransfer(ctx context.Context, request *walletapi.SponsoredTransferRequest) (*walletapi.SponsoredTransferBuildResponse, error) {
+	return &walletapi.SponsoredTransferBuildResponse{Code: common.ReturnCode_ERROR, Msg: "unsupported chain"}, nil
+}
+
+func (c *ChainAdaptor) SendSponsoredTransfer(ctx context.Context, request *walletapi.SponsoredTransferSendRequest) (*walletapi.SendTransactionResponse, error) {
+	return &walletapi.SendTransactionResponse{Code: common.ReturnCode_ERROR, Msg: "unsupported chain"}, nil
+}

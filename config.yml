@@ -41,6 +41,13 @@ wallet_node:
     data_api_token: ''
     contract_addr: ["0x55d398326f99059fF775485246999027B3197955", "0xbCfd4808CCF4Bdf7A61352e2762D2d4D0Bd455e1"]
     time_out: 15
+    aa:
+      enabled: true
+      entry_point: "0x0000000000000000000000000000000000000000"
+      delegate: "0x0000000000000000000000000000000000000000"
+      paymaster: "0x0000000000000000000000000000000000000000"
+      sponsor_address: "0x0000000000000000000000000000000000000000"
+      chain_id_numeric: "56"
 
   btc:
     rpc_url: 'bitcoin-mainnet.core.chainstack.com'

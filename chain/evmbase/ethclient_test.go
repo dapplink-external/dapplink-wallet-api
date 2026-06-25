@@ -13,7 +13,7 @@ import (
 
 func setup() (ethClient EthClient, ethData *EthData, err error) {
 
-	conf, err := config.NewConfig("../../config.yml")
+	conf, err := config.NewConfig("../../config.yml", "", "")
 	if err != nil {
 		log.Error("load config failed, error:", err)
 		return nil, ethData, err

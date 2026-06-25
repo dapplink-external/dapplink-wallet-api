@@ -379,3 +379,11 @@ func (c ChainAdaptor) GetAddressApproveList(ctx context.Context, request *wallet
 	//TODO implement me
 	panic("implement me")
 }
+
+func (c ChainAdaptor) BuildSponsoredTransfer(ctx context.Context, request *walletapi.SponsoredTransferRequest) (*walletapi.SponsoredTransferBuildResponse, error) {
+	panic("implement me")
+}
+
+func (c ChainAdaptor) SendSponsoredTransfer(ctx context.Context, request *walletapi.SponsoredTransferSendRequest) (*walletapi.SendTransactionResponse, error) {
+	panic("implement me")
+}

@@ -483,6 +483,14 @@ func (c *ChainAdaptor) GetAddressApproveList(ctx context.Context, request *walle
 	}, nil
 }
 
+func (c *ChainAdaptor) BuildSponsoredTransfer(ctx context.Context, request *walletapi.SponsoredTransferRequest) (*walletapi.SponsoredTransferBuildResponse, error) {
+	return &walletapi.SponsoredTransferBuildResponse{Code: common.ReturnCode_ERROR, Msg: "unsupported chain"}, nil
+}
+
+func (c *ChainAdaptor) SendSponsoredTransfer(ctx context.Context, request *walletapi.SponsoredTransferSendRequest) (*walletapi.SendTransactionResponse, error) {
+	return &walletapi.SendTransactionResponse{Code: common.ReturnCode_ERROR, Msg: "unsupported chain"}, nil
+}
+
 func PubKeyHexToAddress(pubKeyHex string) (string, error) {
 	pubKeyHex = strings.TrimPrefix(pubKeyHex, "0x")
 	pubKeyBytes, err := hex.DecodeString(pubKeyHex)
