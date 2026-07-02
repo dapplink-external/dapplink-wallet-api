@@ -42,6 +42,7 @@ type ChainAdaptor struct {
 	ethDataClient     *evmbase.EthData
 	contractAddrIndex map[string]struct{}
 	entryPointAddress common.Address
+	sponsorSendMu     sync.Mutex
 }
 
 func NewChainAdaptor(conf *config.Config) (chain.IChainAdaptor, error) {

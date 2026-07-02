@@ -147,41 +147,77 @@ func (c *ChainAdaptor) SendSponsoredTransfer(ctx context.Context, request *walle
 		return &walletapi.SendTransactionResponse{Code: common2.ReturnCode_ERROR, Msg: report.String()}, nil
 	}
 
+	c.sponsorSendMu.Lock()
+	defer c.sponsorSendMu.Unlock()
+
+	authNonceBig, err := c.ethClient.GetTransactionAccount(op.Sender)
+	if err != nil {
+		return &walletapi.SendTransactionResponse{Code: common2.ReturnCode_ERROR, Msg: err.Error()}, nil
+	}
+	if authNonceBig.Uint64() != op.AuthNonce {
+		return &walletapi.SendTransactionResponse{
+			Code: common2.ReturnCode_ERROR,
+			Msg:  fmt.Sprintf("stale auth nonce: expected %d got %d, rebuild sponsored transfer", op.AuthNonce, authNonceBig.Uint64()),
+		}, nil
+	}
+
 	gasTipCap, gasFeeCap, err := evmbase.ResolveEip1559GasFees(c.ethClient)
 	if err != nil {
 		gasTipCap, gasFeeCap = evmbase.DefaultEip1559GasFees()
 	}
 
-	sponsorNonceBig, err := c.ethClient.GetTransactionAccount(cfg.SponsorAddress)
-	if err != nil {
-		return &walletapi.SendTransactionResponse{Code: common2.ReturnCode_ERROR, Msg: err.Error()}, nil
-	}
-
 	const outerGasLimit = uint64(1_500_000)
-	tx, err := aa.FinalizeAndSignSend(cfg, op, userOpSig, authSig, sponsorNonceBig.Uint64(), gasTipCap, gasFeeCap, outerGasLimit)
-	if err != nil {
-		return &walletapi.SendTransactionResponse{Code: common2.ReturnCode_ERROR, Msg: err.Error()}, nil
+	const maxSendAttempts = 3
+	var lastErr error
+	for attempt := 0; attempt < maxSendAttempts; attempt++ {
+		if attempt > 0 {
+			gasTipCap, gasFeeCap = evmbase.BumpEip1559GasFees(gasTipCap, gasFeeCap, attempt)
+		}
+
+		sponsorNonceBig, err := c.ethClient.GetTransactionAccount(cfg.SponsorAddress)
+		if err != nil {
+			return &walletapi.SendTransactionResponse{Code: common2.ReturnCode_ERROR, Msg: err.Error()}, nil
+		}
+
+		tx, err := aa.FinalizeAndSignSend(cfg, op, userOpSig, authSig, sponsorNonceBig.Uint64(), gasTipCap, gasFeeCap, outerGasLimit)
+		if err != nil {
+			return &walletapi.SendTransactionResponse{Code: common2.ReturnCode_ERROR, Msg: err.Error()}, nil
+		}
+
+		rawTx, err := aa.RawTxHex(tx)
+		if err != nil {
+			return &walletapi.SendTransactionResponse{Code: common2.ReturnCode_ERROR, Msg: err.Error()}, nil
+		}
+
+		hash, err := c.ethClient.SendRawTransaction(rawTx)
+		if err == nil {
+			return &walletapi.SendTransactionResponse{
+				Code: common2.ReturnCode_SUCCESS,
+				Msg:  "success",
+				TxnRet: []*walletapi.RawTransactionReturn{{
+					TxHash:    hash.Hex(),
+					IsSuccess: true,
+					Message:   "sponsored transfer sent",
+				}},
+			}, nil
+		}
+
+		lastErr = err
+		if !evmbase.IsRetryableSendError(err) || attempt == maxSendAttempts-1 {
+			break
+		}
+		log.Warn("retry sponsored transfer send",
+			"attempt", attempt+1,
+			"from", op.Sender.Hex(),
+			"err", err,
+		)
 	}
 
-	rawTx, err := aa.RawTxHex(tx)
-	if err != nil {
-		return &walletapi.SendTransactionResponse{Code: common2.ReturnCode_ERROR, Msg: err.Error()}, nil
+	msg := "send sponsored transfer failed"
+	if lastErr != nil {
+		msg = lastErr.Error()
 	}
-
-	hash, err := c.ethClient.SendRawTransaction(rawTx)
-	if err != nil {
-		return &walletapi.SendTransactionResponse{Code: common2.ReturnCode_ERROR, Msg: err.Error()}, nil
-	}
-
-	return &walletapi.SendTransactionResponse{
-		Code: common2.ReturnCode_SUCCESS,
-		Msg:  "success",
-		TxnRet: []*walletapi.RawTransactionReturn{{
-			TxHash:    hash.Hex(),
-			IsSuccess: true,
-			Message:   "sponsored transfer sent",
-		}},
-	}, nil
+	return &walletapi.SendTransactionResponse{Code: common2.ReturnCode_ERROR, Msg: msg}, nil
 }
 
 func (c *ChainAdaptor) entryPointNonce(sender, entryPoint common.Address) (*big.Int, error) {
